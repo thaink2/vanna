@@ -246,8 +246,8 @@ class Agent:
         Yields:
             UiComponent instances for UI updates
         """
-        # Extract hide_thoughts from request metadata (defaults to False for backward compatibility)
-        hide_thoughts = request_context.metadata.get('hide_thoughts', False)
+        # Extract hide_thoughts from request metadata (defaults to True to hide tool execution details)
+        hide_thoughts = request_context.metadata.get('hide_thoughts', True)
         
         # Resolve user from request context with observability
         user_resolution_span = None
