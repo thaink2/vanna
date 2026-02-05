@@ -246,6 +246,9 @@ class Agent:
         Yields:
             UiComponent instances for UI updates
         """
+        # Extract hide_thoughts from request metadata (defaults to True to hide tool execution details)
+        hide_thoughts = request_context.metadata.get('hide_thoughts', True)
+        
         # Resolve user from request context with observability
         user_resolution_span = None
         if self.observability_provider:
@@ -675,7 +678,7 @@ class Agent:
                             user,
                         )
                     )
-                    if has_tool_invocation_message_in_chat:
+                    if has_tool_invocation_message_in_chat and not hide_thoughts:
                         yield UiComponent(
                             rich_component=RichTextComponent(
                                 content=response.content, markdown=True
@@ -683,7 +686,7 @@ class Agent:
                             simple_component=SimpleTextComponent(text=response.content),
                         )
 
-                        # Update status to executing tools
+                        # Update status to executing tools (only if hide_thoughts is False)
                         yield UiComponent(  # type: ignore
                             rich_component=StatusBarUpdateComponent(
                                 status="working",
@@ -691,8 +694,8 @@ class Agent:
                                 detail=f"Running {len(response.tool_calls or [])} tools",
                             )
                         )
-                    else:
-                        # Yield as a status update instead
+                    elif not hide_thoughts:
+                        # Yield as a status update instead (only if hide_thoughts is False)
                         yield UiComponent(  # type: ignore
                             rich_component=StatusBarUpdateComponent(
                                 status="working", message=response.content, detail=""
@@ -732,7 +735,7 @@ class Agent:
                             request_id=request_id,
                         )
 
-                    if has_tool_names_access:
+                    if has_tool_names_access and not hide_thoughts:
                         yield UiComponent(  # type: ignore
                             rich_component=TaskTrackerUpdateComponent.add_task(
                                 tool_task
@@ -773,7 +776,8 @@ class Agent:
                             request_id=request_id,
                         )
 
-                    if has_tool_args_access:
+                    # Only show tool execution status if hide_thoughts is False
+                    if has_tool_args_access and not hide_thoughts:
                         yield UiComponent(
                             rich_component=tool_status_card,
                             simple_component=SimpleTextComponent(
@@ -908,7 +912,7 @@ class Agent:
                             request_id=request_id,
                         )
 
-                    if has_tool_args_access_2:
+                    if has_tool_args_access_2 and not hide_thoughts:
                         yield UiComponent(
                             rich_component=tool_status_card.set_status(
                                 final_status, final_description
@@ -941,7 +945,7 @@ class Agent:
                             request_id=request_id,
                         )
 
-                    if has_tool_names_access_2:
+                    if has_tool_names_access_2 and not hide_thoughts:
                         # Update tool task to completed
                         yield UiComponent(  # type: ignore
                             rich_component=TaskTrackerUpdateComponent.update_task(

@@ -638,7 +638,8 @@ export class VannaChat extends LitElement {
         conversation_id: this.conversationId,
         request_id: this.generateId(),
         metadata: {
-          starter_ui_request: true
+          starter_ui_request: true,
+          hide_thoughts: this.hideThoughts
         }
       };
 
@@ -772,7 +773,9 @@ export class VannaChat extends LitElement {
       message,
       conversation_id: this.conversationId,
       request_id: this.generateId(),
-      metadata: {}
+      metadata: {
+        hide_thoughts: this.hideThoughts
+      }
     };
 
     try {
@@ -796,7 +799,11 @@ export class VannaChat extends LitElement {
       data: {
         content,
         role: type
-      }
+      },
+      children: [],
+      timestamp: new Date().toISOString(),
+      visible: true,
+      interactive: false
     };
 
     const update = {
@@ -816,38 +823,29 @@ export class VannaChat extends LitElement {
   private async handleStreamingResponse(request: any): Promise<void> {
     this.disabled = true;
 
+    // Ensure API client exists and is up to date
+    if (!this.apiClient || this.apiClient.baseUrl !== this.apiBaseUrl) {
+      this.ensureApiClient();
+    }
+
+    // Note: Status bar updates are now controlled by backend via StatusBarUpdateComponent
+    // Frontend only shows initial "Sending message..." status (set in _sendMessageInternal)
+    // and handles connection errors below
+
     try {
-      // Strategy 1: Try WebSocket first
-      try {
-        console.log('[VannaChat] Attempting WebSocket connection...');
-        await this.apiClient.sendWebSocketMessage(request, async (chunk) => {
-          await this.processChunk(chunk);
-        });
-        console.log('[VannaChat] WebSocket streaming completed successfully');
-        
-        // Backend is responsible for final status via StatusBarUpdateComponent
-        return;
+      // Use SSE streaming by default
+      const stream = this.apiClient.streamChat(request);
 
-      } catch (wsError) {
-        console.warn('[VannaChat] WebSocket failed, trying SSE...', wsError);
-        
-        // Strategy 2: Try SSE
-        try {
-          await this.apiClient.sendSSEMessage(request, async (chunk) => {
-            await this.processChunk(chunk);
-          });
-          console.log('[VannaChat] SSE streaming completed successfully');
-          
-          // Backend is responsible for final status via StatusBarUpdateComponent
-          return;
-
-        } catch (sseError) {
-          console.warn('[VannaChat] SSE failed, falling back to polling...', sseError);
-          // Continue to polling fallback below
-        }
+      for await (const chunk of stream) {
+        await this.processChunk(chunk);
       }
 
-      // Strategy 3: Fallback to polling
+      // Backend is responsible for final status via StatusBarUpdateComponent
+      // No frontend status clearing here
+
+    } catch (error) {
+      console.warn('SSE streaming failed, falling back to polling:', error);
+
       try {
         // Fallback to polling - show user we're retrying
         this.setStatus('working', 'Connection issue, retrying...', 'Using fallback method');
