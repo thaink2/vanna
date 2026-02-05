@@ -638,7 +638,8 @@ export class VannaChat extends LitElement {
         conversation_id: this.conversationId,
         request_id: this.generateId(),
         metadata: {
-          starter_ui_request: true
+          starter_ui_request: true,
+          hide_thoughts: this.hideThoughts
         }
       };
 
@@ -772,7 +773,9 @@ export class VannaChat extends LitElement {
       message,
       conversation_id: this.conversationId,
       request_id: this.generateId(),
-      metadata: {}
+      metadata: {
+        hide_thoughts: this.hideThoughts
+      }
     };
 
     try {
