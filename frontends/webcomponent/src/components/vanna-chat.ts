@@ -1126,36 +1126,43 @@ export class VannaChat extends LitElement {
     console.log('Processing chunk:', chunk); // Debug log
 
     // Handle rich components via ComponentManager
-    if (chunk.rich && this.componentManager) {
-      console.log('Processing rich component via ComponentManager:', chunk.rich); // Debug log
-      
-      if (chunk.rich.id && chunk.rich.lifecycle) {
-        // Standard rich component with lifecycle
-        const component = chunk.rich as RichComponent;
-        const update = {
-          operation: chunk.rich.lifecycle as any,
-          target_id: chunk.rich.id,
-          component: component,
-          timestamp: new Date().toISOString()
-        };
-        this.componentManager.processUpdate(update);
-      } else if (chunk.rich.type === 'component_update') {
-        // Component update format
-        this.componentManager.processUpdate(chunk.rich as any);
-      } else {
-        // Generic rich component
-        const component = chunk.rich as RichComponent;
-        const update = {
-          operation: 'create' as const,
-          target_id: component.id || `component-${Date.now()}`,
-          component: component,
-          timestamp: new Date().toISOString()
-        };
-        this.componentManager.processUpdate(update);
-      }
-      
-      return;
-    }
+if (chunk.rich && this.componentManager) {
+  console.log('Processing rich component via ComponentManager:', chunk.rich); // Debug log
+  
+  // ⭐ ADD THIS FILTER - Skip thinking and tool_execution components
+  const componentType = chunk.rich.type;
+  if (componentType === 'thinking' || componentType === 'tool_execution') {
+    console.log('Skipping thought/execution component:', componentType);
+    return; // Don't render these components
+  }
+  
+  if (chunk.rich.id && chunk.rich.lifecycle) {
+    // Standard rich component with lifecycle
+    const component = chunk.rich as RichComponent;
+    const update = {
+      operation: chunk.rich.lifecycle as any,
+      target_id: chunk.rich.id,
+      component: component,
+      timestamp: new Date().toISOString()
+    };
+    this.componentManager.processUpdate(update);
+  } else if (chunk.rich.type === 'component_update') {
+    // Component update format
+    this.componentManager.processUpdate(chunk.rich as any);
+  } else {
+    // Generic rich component
+    const component = chunk.rich as RichComponent;
+    const update = {
+      operation: 'create' as const,
+      target_id: component.id || `component-${Date.now()}`,
+      component: component,
+      timestamp: new Date().toISOString()
+    };
+    this.componentManager.processUpdate(update);
+  }
+  
+  return;
+}
 
     // Update progress tracker for legacy components (keep for backward compatibility)
     const progressTracker = this.getProgressTracker();
