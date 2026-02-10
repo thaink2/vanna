@@ -1,5 +1,6 @@
 build
 **.egg-info
+.venv
 venn
 .DS_Store
 tests/__pycache__
@@ -19,6 +20,7 @@ chroma.sqlite3
 .coverage.*
 milvus.db
 .milvus.db.lock
+.venv/
 
 # Frontend builds and dependencies
 frontends/**/node_modules/
