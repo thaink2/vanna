@@ -52,11 +52,11 @@ class OvhMistralLlmService(LlmService):
             base_url: OVH's server address (or set MISTRAL_BASE_URL in .env)
         """
         try:
-            from mistralai import Mistral
+            from openai import OpenAI
         except ImportError as e:
             raise ImportError(
-                "❌ mistralai package missing!\n"
-                "Fix: pip install mistralai"
+                "❌ openai package missing!\n"
+                "Fix: pip install openai"
             ) from e
 
         self.model = model or os.getenv("MISTRAL_MODEL", "Mistral-Small-3.2-24B-Instruct-2506")
@@ -66,7 +66,10 @@ class OvhMistralLlmService(LlmService):
         if api_key:
             api_key = api_key.strip()
         if base_url:
-            base_url = base_url.strip().replace("/v1/chat/completions", "")
+            base_url = base_url.strip().rstrip("/")
+            # If the URL ends with /chat/completions remove 
+            if base_url.endswith("/chat/completions"):
+                base_url = base_url.replace("/chat/completions", "")
 
         client_kwargs: Dict[str, Any] = {**extra_client_kwargs}
         
@@ -78,8 +81,12 @@ class OvhMistralLlmService(LlmService):
         if base_url:
             client_kwargs["server_url"] = base_url
             logger.info(f"🔗 Using custom OVH endpoint: {base_url}")
+        
+        self._client = OpenAI(
+        api_key=api_key,
+        base_url=base_url
+        )
 
-        self._client = Mistral(**client_kwargs)
         logger.info(f"✅ OVH Mistral ready! Model: {self.model}")
 
     async def send_request(self, request: LlmRequest) -> LlmResponse:
@@ -98,8 +105,8 @@ class OvhMistralLlmService(LlmService):
         
         logger.debug(f"📤 Sending to OVH Mistral: {payload}")
 
-        response = self._client.chat.complete(**payload)
-        
+        response = self._client.chat.completions.create(**payload)  
+
         logger.debug(f"📥 Got response from OVH Mistral")
 
         text_content, tool_calls = self._parse_response(response)
@@ -121,23 +128,20 @@ class OvhMistralLlmService(LlmService):
     async def stream_request(
         self, request: LlmRequest
     ) -> AsyncGenerator[LlmStreamChunk, None]:
-        """
-        Stream a response from OVH Mistral word-by-word.
-        
-        This is like watching someone type in real-time.
-        Why? Users want to see text appearing live, not wait for everything.
-        """
+        """Stream the response using OpenAI's more flexible generator."""
         payload = self._build_payload(request)
-        
-        logger.debug(f"📤 Streaming from OVH Mistral...")
+        payload["stream"] = True 
 
-        with self._client.chat.stream(**payload) as stream:
-            for chunk in stream:
-                # Extract text from this chunk
-                if hasattr(chunk, "data") and chunk.data:
-                    delta = chunk.data.choices[0].delta if chunk.data.choices else None
-                    if delta and hasattr(delta, "content") and delta.content:
-                        yield LlmStreamChunk(content=delta.content)
+        # Using the OpenAI client method
+        stream = self._client.chat.completions.create(**payload)
+        
+        for chunk in stream:
+            # Check if choices exists and has at least one item
+            if chunk.choices and len(chunk.choices) > 0:
+                # Extract the actual text content from the delta
+                content = chunk.choices[0].delta.content
+                if content:
+                    yield LlmStreamChunk(content=content)
 
         yield LlmStreamChunk(finish_reason="stop")
 
@@ -192,8 +196,8 @@ class OvhMistralLlmService(LlmService):
         
         if request.temperature is not None:
             payload["temperature"] = request.temperature
-
-            payload["tools"] = [
+        if request.tools:
+         payload["tools"] = [
                 {
                     "type": "function",
                     "function": {
